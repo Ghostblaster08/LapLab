@@ -1,0 +1,77 @@
+networks:
+  homelab-net:
+    external: true
+
+services:
+  # Unbound: a validating, recursive, caching DNS resolver.
+  # Queries Root DNS servers directly instead of forwarding to Cloudflare/Google.
+  # AdGuard Home uses this as its upstream, giving us: ad-blocking + full DNS privacy.
+  unbound:
+    image: mvance/unbound:latest
+    container_name: unbound
+    restart: unless-stopped
+    volumes:
+      - ${APPDATA_PATH}/unbound:/opt/unbound/etc/unbound
+    networks:
+      homelab-net:
+        ipv4_address: 172.20.0.200   # static IP so AdGuard can always find it
+
+  adguardhome:
+    image: adguard/adguardhome:latest
+    container_name: adguardhome
+    restart: unless-stopped
+    depends_on:
+      - unbound
+    ports:
+      - "${TAILSCALE_IP:-100.82.40.45}:53:53/tcp"
+      - "${TAILSCALE_IP:-100.82.40.45}:53:53/udp"
+      - "853:853/tcp"    # DNS-over-TLS (DoT) for clients that support it
+      - "3000:3000/tcp"  # Initial setup portal (disable after first run)
+      - "8080:80/tcp"    # Web dashboard
+    volumes:
+      - ${APPDATA_PATH}/adguard/work:/opt/adguardhome/work
+      - ${APPDATA_PATH}/adguard/conf:/opt/adguardhome/conf
+    networks:
+      - homelab-net
+    # After initial setup, configure upstream DNS to: 172.20.0.200:5335 (Unbound)
+
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: npm
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "81:81"    # NPM Admin UI — restrict this to LAN only in your router/firewall
+    volumes:
+      - ${APPDATA_PATH}/npm/data:/data
+      - ${APPDATA_PATH}/npm/letsencrypt:/etc/letsencrypt
+    networks:
+      - homelab-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:81"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Tailscale: Zero-trust mesh VPN running inside Docker (no host packages needed!)
+  # Gives you secure remote access to all your homelab services from anywhere.
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    hostname: homelab-laptop
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - ${APPDATA_PATH}/tailscale:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+      - TS_AUTHKEY=${TS_AUTHKEY:-}   # Optional: set in .env or login via link in 'docker logs tailscale'
+      - TS_ROUTES=192.168.1.0/24      # Subnet router: allows remote phone/TV to reach home LAN
+      - TS_EXTRA_ARGS=--advertise-exit-node
+

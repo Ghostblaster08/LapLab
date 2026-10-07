@@ -1,0 +1,51 @@
+networks:
+  homelab-net:
+    external: true
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    user: "${PUID}:${PGID}"
+    group_add:
+      - "987"   # render GID (verified: getent group render → 987 on this Omarchy system)
+      - "983"   # video  GID (verified: getent group video  → 983 on this Omarchy system)
+    devices:
+      # Intel Iris Plus G1 / Ice Lake — the ONLY hardware encoder on this laptop.
+      # The MX230 (renderD128) is GP108 and has NO NVENC; never pass it here.
+      - /dev/dri/renderD129:/dev/dri/renderD129
+      - /dev/dri/card2:/dev/dri/card2
+    ports:
+      - "8096:8096"   # HTTP API & Web UI
+      - "7359:7359/udp"  # LAN auto-discovery (clients broadcast here to find server)
+      - "1900:1900/udp"  # DLNA/UPnP discovery (Jellyfin announces itself on the LAN)
+    environment:
+      - JELLYFIN_PublishedServerUrl=http://192.168.1.96:8096
+    volumes:
+      - ${APPDATA_PATH}/jellyfin/config:/config
+      - ${APPDATA_PATH}/jellyfin/cache:/cache
+      - ${STORAGE_PATH}/media/movies:/data/movies:ro
+      - ${STORAGE_PATH}/media/tv:/data/tv:ro
+      - ${STORAGE_PATH}/media/music:/data/music:ro
+    restart: unless-stopped
+    networks:
+      - homelab-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:latest
+    container_name: audiobookshelf
+    ports:
+      - "13378:80"
+    volumes:
+      - ${STORAGE_PATH}/media/audiobooks:/audiobooks:ro
+      - ${STORAGE_PATH}/media/podcasts:/podcasts
+      - ${APPDATA_PATH}/audiobookshelf/config:/config
+      - ${APPDATA_PATH}/audiobookshelf/metadata:/metadata
+    restart: unless-stopped
+    networks:
+      - homelab-net

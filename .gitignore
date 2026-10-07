@@ -1,0 +1,53 @@
+# ==============================================================================
+# Homelab Security & Git Ignore Rules
+# ==============================================================================
+
+# Critical: Never commit sensitive environment variables or secrets
+.env
+**/.env
+*.env.*
+!.env.example
+
+# Persistent Application Data & Databases (Host volumes)
+appdata/
+**/appdata/
+/data/
+**/data/
+
+# Databases, Keys, Certificates, and State files
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.state
+*.sock
+*.key
+*.pem
+*.crt
+*.pfx
+*.p12
+
+# Runtime & Container logs
+*.log
+*.log.*
+logs/
+**/logs/
+
+# Backups & Archive files
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.bak
+backups/
+
+# System and IDE artifacts
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.metadata.json
+scratch/

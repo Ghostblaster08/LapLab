@@ -1,0 +1,60 @@
+networks:
+  homelab-net:
+    external: true
+
+services:
+  dockge:
+    image: louislam/dockge:latest
+    container_name: dockge
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${HOMELAB_ROOT}/stacks:/stacks
+      - ${APPDATA_PATH}/dockge:/app/data
+    environment:
+      - DOCKGE_STACKS_DIR=/stacks
+    networks:
+      - homelab-net
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - ${APPDATA_PATH}/uptime-kuma:/app/data
+    networks:
+      - homelab-net
+
+  # Unified dashboard: shows live service cards with Jellyfin "now playing",
+  # AdGuard query stats, system temps, RAM/CPU, weather, bookmarks, etc.
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    ports:
+      - "3005:3000"
+    volumes:
+      - ${APPDATA_PATH}/homepage:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # read-only: pulls container status for widgets
+    environment:
+      - HOMEPAGE_ALLOWED_HOSTS=*
+    networks:
+      - homelab-net
+
+  # Real-time container log viewer — like 'docker logs -f' but in a browser.
+  # Zero config, just works.
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    restart: unless-stopped
+    ports:
+      - "9999:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - homelab-net
+
